@@ -21,7 +21,7 @@ use crate::util::anyhow::{error_with_location, with_location, with_location_msg}
 /// # Return
 ///
 /// * Vector of full paths to task files.
-pub fn task_files() -> Result<Vec<PathBuf>> {
+pub fn task_files(override_work_dir: Option<String>) -> Result<Vec<PathBuf>> {
     let mut result: Vec<PathBuf> = vec![];
 
     let config_dir = config_dir(
@@ -31,7 +31,7 @@ pub fn task_files() -> Result<Vec<PathBuf>> {
     )?;
     result.append(&mut gather_task_files(&config_dir));
 
-    let cwd = with_location!(env::current_dir())?;
+    let cwd = work_dir(override_work_dir, env::current_dir())?;
     let path = vscode_tasks_file(cwd)?;
     result.push(path);
 
@@ -106,6 +106,13 @@ fn gather_task_files(dir: &Path) -> Vec<PathBuf> {
     }
 
     result
+}
+
+fn work_dir(
+    override_work_dir: Option<String>,
+    current_work_dir: std::io::Result<PathBuf>,
+) -> Result<PathBuf> {
+    Ok(current_work_dir?)
 }
 
 /// Determines the full path of the VSCode tasks file `tasks.json` from current working directory.
