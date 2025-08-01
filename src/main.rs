@@ -17,9 +17,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let task_files = action::find::task_files()?;
-    if task_files.is_empty() {
-        bail!("Could not find any task files, nothing to do");
-    }
+    let tasks = action::parse::tasks(task_files)?;
+    println!("{:#?}", tasks);
 
     if cli.rerun {
         bail!("WIP");
