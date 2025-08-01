@@ -21,7 +21,7 @@ use crate::util::anyhow::{error_with_location, with_location, with_location_msg}
 /// # Return
 ///
 /// * Vector of full paths to task files.
-pub fn task_files() -> Result<Vec<PathBuf>> {
+pub fn task_files(override_work_dir: Option<String>) -> Result<Vec<PathBuf>> {
     let mut result: Vec<PathBuf> = vec![];
 
     let config_dir = config_dir(
@@ -31,7 +31,7 @@ pub fn task_files() -> Result<Vec<PathBuf>> {
     )?;
     result.append(&mut gather_task_files(&config_dir));
 
-    let cwd = with_location!(env::current_dir())?;
+    let cwd = work_dir(override_work_dir, with_location!(env::current_dir()))?;
     let path = vscode_tasks_file(cwd)?;
     result.push(path);
 
@@ -106,6 +106,16 @@ fn gather_task_files(dir: &Path) -> Vec<PathBuf> {
     }
 
     result
+}
+
+fn work_dir(
+    override_work_dir: Option<String>,
+    current_work_dir: Result<PathBuf>,
+) -> Result<PathBuf> {
+    if let Some(path) = override_work_dir {
+        return Ok(PathBuf::from(path));
+    }
+    current_work_dir
 }
 
 /// Determines the full path of the VSCode tasks file `tasks.json` from current working directory.
@@ -249,6 +259,36 @@ mod tests {
                 work_dir.join("dir_three/4.json")
             ]
         );
+    }
+
+    #[test]
+    fn work_dir_preffer_override() {
+        let override_work_dir: Option<String> = Some("/override".to_string());
+        let current_work_dir: Result<PathBuf> = Err(anyhow::anyhow!("no cwd"));
+
+        let result = work_dir(override_work_dir, current_work_dir).unwrap();
+
+        assert_eq!(result, PathBuf::from("/override"));
+    }
+
+    #[test]
+    fn work_dir_no_override() {
+        let override_work_dir: Option<String> = None;
+        let current_work_dir: Result<PathBuf> = Ok(PathBuf::from("/cwd"));
+
+        let result = work_dir(override_work_dir, current_work_dir).unwrap();
+
+        assert_eq!(result, PathBuf::from("/cwd"));
+    }
+
+    #[test]
+    fn work_dir_no_override_error() {
+        let override_work_dir: Option<String> = None;
+        let current_work_dir: Result<PathBuf> = Err(anyhow::anyhow!("no cwd"));
+
+        let result = work_dir(override_work_dir, current_work_dir);
+
+        assert!(result.is_err_and(|e| e.to_string().eq("no cwd")));
     }
 
     #[test]

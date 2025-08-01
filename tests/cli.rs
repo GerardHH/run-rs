@@ -42,6 +42,29 @@ fn success_base() {
 }
 
 #[test]
+fn change_work_dir() {
+    let temp_fs = base_temp_fs();
+    temp_fs
+        .child("another_project")
+        .child(".vscode")
+        .child("tasks.json")
+        .touch()
+        .unwrap();
+    let mut cmd = base_command(temp_fs.path());
+    cmd.arg("--work-dir")
+        .arg(temp_fs.path().join("another_project"))
+        .arg("--list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            temp_fs
+                .join("another_project/.vscode/tasks.json")
+                .to_str()
+                .unwrap(),
+        ));
+}
+
+#[test]
 fn fail_on_missing_env_variables() {
     let mut cmd = Command::cargo_bin("run-rs").unwrap();
     cmd.env_remove("HOME")
