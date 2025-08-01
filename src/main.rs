@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 use clap::Parser;
 
 mod action;
+mod parsers;
 mod util;
 
 /// A task runner that understands VSCode tasks
@@ -24,9 +25,14 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let task_files = action::find::task_files(cli.work_dir)?;
+    let parsers: Vec<Box<dyn parsers::parser_trait::Parser>> =
+        vec![Box::new(parsers::vscode::VSCode)];
+
+    let supported_extensions = action::parse::supported_extension(&parsers);
+    let task_files = action::find::task_files(cli.work_dir, supported_extensions)?;
+    let tasks = action::parse::tasks(task_files, &parsers)?;
     if cli.list {
-        println!("{:#?}", task_files);
+        println!("{:#?}", tasks);
     }
 
     if cli.rerun {

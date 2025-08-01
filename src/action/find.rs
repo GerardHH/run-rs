@@ -8,9 +8,6 @@ use crate::util::anyhow::{error_with_location, with_location, with_location_msg}
 
 /// Find all supported task files and return them.
 ///
-/// Supported files:
-/// * json (specifically VSCode task file format)
-///
 /// This function does not validate the files contents.
 ///
 /// # Developer note
@@ -18,10 +15,18 @@ use crate::util::anyhow::{error_with_location, with_location, with_location_msg}
 /// This function is hard to test because of `std::env` usage. Leave as much logic out of this
 /// function as possible.
 ///
+/// # Arguments
+///
+/// * override_work_dir - Path to work dir that will override the cwd.
+/// * supported_extensions - List of supported extension.
+///
 /// # Return
 ///
 /// * Vector of full paths to task files.
-pub fn task_files(override_work_dir: Option<String>) -> Result<Vec<PathBuf>> {
+pub fn task_files(
+    override_work_dir: Option<String>,
+    supported_extensions: Vec<&str>,
+) -> Result<Vec<PathBuf>> {
     let mut result: Vec<PathBuf> = vec![];
 
     let config_dir = config_dir(
@@ -29,7 +34,7 @@ pub fn task_files(override_work_dir: Option<String>) -> Result<Vec<PathBuf>> {
         env::var("XDG_CONFIG_HOME"),
         env::var("HOME"),
     )?;
-    result.append(&mut gather_task_files(&config_dir));
+    result.append(&mut gather_task_files(&config_dir, supported_extensions));
 
     let cwd = work_dir(override_work_dir, with_location!(env::current_dir()))?;
     let path = vscode_tasks_file(cwd)?;
@@ -86,11 +91,12 @@ fn config_dir(
 /// # Arguments
 ///
 /// * dir - The location on file system to traverse.
+/// * supported_extensions - A list of extensions that all files will be matched against.
 ///
 /// # Return
 ///
-/// * Vector of full path to found files.
-fn gather_task_files(dir: &Path) -> Vec<PathBuf> {
+/// * Vector of full path to found files that match `supported_extensions`.
+fn gather_task_files(dir: &Path, supported_extensions: Vec<&str>) -> Vec<PathBuf> {
     let mut result = vec![];
 
     for entry in WalkDir::new(dir)
@@ -99,7 +105,7 @@ fn gather_task_files(dir: &Path) -> Vec<PathBuf> {
         .filter_map(|e| e.ok())
     {
         if let Some(ext) = entry.path().extension() {
-            if ext == "json" {
+            if supported_extensions.contains(&ext.to_str().unwrap()) {
                 result.push(entry.into_path());
             }
         }
@@ -230,7 +236,9 @@ mod tests {
 
         let work_dir = temp_fs.to_path_buf();
 
-        assert!(gather_task_files(&work_dir).is_empty());
+        let supported_extensions: Vec<&str> = vec!["json"];
+
+        assert!(gather_task_files(&work_dir, supported_extensions).is_empty());
     }
 
     #[test]
@@ -250,14 +258,35 @@ mod tests {
 
         let work_dir = temp_fs.to_path_buf();
 
+        let supported_extensions: Vec<&str> = vec!["json"];
+
         assert_unordered_eq!(
-            gather_task_files(&work_dir),
+            gather_task_files(&work_dir, supported_extensions),
             vec![
                 work_dir.join("1.json"),
                 work_dir.join("dir_one/2.json"),
                 work_dir.join("dir_one/dir_two/3.json"),
                 work_dir.join("dir_three/4.json")
             ]
+        );
+    }
+
+    #[test]
+    fn gather_task_files_mixed_but_only_json() {
+        let temp_fs = TempDir::new().unwrap();
+
+        temp_fs.child("1.json").touch().unwrap();
+        temp_fs.child("2.toml").touch().unwrap();
+        temp_fs.child(".hidden").touch().unwrap();
+        temp_fs.child("no_ext").touch().unwrap();
+
+        let work_dir = temp_fs.to_path_buf();
+
+        let supported_extensions: Vec<&str> = vec!["json"];
+
+        assert_unordered_eq!(
+            gather_task_files(&work_dir, supported_extensions),
+            vec![work_dir.join("1.json"),]
         );
     }
 

@@ -1,4 +1,12 @@
 /// Create [`anyhow::Error`] with the content of "file_name:line_number: `msg`".
+///
+/// # Example
+/// ```
+/// fn f() -> anyhow::Result<bool> {
+///     Err(error_with_location("Explode!"))
+/// }
+/// ```
+/// Output: "full_file_path:line_number: Explode!"
 macro_rules! error_with_location {
     ($($msg:tt)+) => {
         ::anyhow::anyhow!(concat!(file!(), ":", line!(), ": {}"), format_args!($($msg)+))
