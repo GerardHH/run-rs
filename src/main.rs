@@ -25,8 +25,9 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let task_files = action::find::task_files(cli.work_dir)?;
+    let tasks = action::parse::tasks(task_files)?;
     if cli.list {
-        println!("{:#?}", task_files);
+        println!("{:#?}", tasks);
     }
 
     if cli.rerun {
